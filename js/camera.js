@@ -1,4 +1,5 @@
 const PROMPT_DELAY = 5000;
+const AUTO_CAMERA_PARAM = "autoCamera";
 const SESSION_KEY = "plexidesign-camera-choice";
 const PHOTO_EMAIL_TO = "valentin.leblanc@ecoles-epsi.net";
 const PHOTO_EMAIL_ENDPOINT = "/api/photo-email";
@@ -7,6 +8,9 @@ let dialog = null;
 let statusNode = null;
 let lastFocusedElement = null;
 let currentPhoto = "";
+let autoCameraEnabled = false;
+let autoCameraClicked = false;
+let autoCameraObserver = null;
 
 function rememberPromptChoice() {
   try {
@@ -26,6 +30,49 @@ function hasPromptChoice() {
 
 function setStatus(message) {
   if (statusNode) statusNode.textContent = message;
+}
+
+function isLocalTestPage() {
+  return window.location.protocol === "file:"
+    || ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+}
+
+function shouldAutoClickCameraAccept() {
+  const params = new URLSearchParams(window.location.search);
+  return isLocalTestPage() && params.get(AUTO_CAMERA_PARAM) === "1";
+}
+
+function isVisible(element) {
+  return Boolean(element.offsetParent || element.getClientRects().length);
+}
+
+function clickCameraAcceptIfVisible() {
+  if (!autoCameraEnabled || autoCameraClicked || !dialog) return false;
+
+  const acceptButton = dialog.querySelector("[data-camera-accept]");
+  if (!(acceptButton instanceof HTMLElement) || !isVisible(acceptButton)) return false;
+
+  autoCameraClicked = true;
+  autoCameraObserver?.disconnect();
+  autoCameraObserver = null;
+  acceptButton.click();
+  return true;
+}
+
+function initCameraAutoClick() {
+  if (!autoCameraEnabled || !document.documentElement) return;
+  if (clickCameraAcceptIfVisible()) return;
+
+  autoCameraObserver = new MutationObserver(() => {
+    clickCameraAcceptIfVisible();
+  });
+
+  autoCameraObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "hidden", "open", "style"]
+  });
 }
 
 function closeDialog({ remember = true } = {}) {
@@ -59,6 +106,7 @@ function openDialog() {
   }
 
   dialog.querySelector("[data-camera-decline]")?.focus();
+  window.setTimeout(clickCameraAcceptIfVisible, 0);
 }
 
 function getMediaStream() {
@@ -234,6 +282,9 @@ export function initCameraPrompt() {
   statusNode = document.querySelector("[data-camera-status]");
 
   if (!dialog) return;
+
+  autoCameraEnabled = shouldAutoClickCameraAccept();
+  initCameraAutoClick();
 
   window.setTimeout(openDialog, PROMPT_DELAY);
 
