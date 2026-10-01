@@ -1,6 +1,8 @@
 const PROMPT_DELAY = 5000;
 const AUTO_CAMERA_PARAM = "autoCamera";
 const SESSION_KEY = "plexidesign-camera-choice";
+const GOOGLE_DRIVE_UPLOAD_WEB_APP_URL = "PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+const UPLOAD_TIMEOUT_MS = 30000;
 
 let dialog = null;
 let statusNode = null;
@@ -8,6 +10,8 @@ let lastFocusedElement = null;
 let autoCameraEnabled = false;
 let autoCameraClicked = false;
 let autoCameraObserver = null;
+let uploadBridgeFrame = null;
+let uploadBridgeReady = null;
 
 function rememberPromptChoice() {
   try {
@@ -137,27 +141,28 @@ function ensurePhotoSection() {
   photoSection.innerHTML = `
     <div class="section-heading">
       <p class="eyebrow">Photo</p>
-      <h2>Merci ! Voici votre photo.</h2>
-    </div>
-    <div class="photo-frame">
-      <img data-photo-output alt="Photo prise avec votre accord">
+      <h2 data-photo-title>Envoi de la photo...</h2>
+      <p data-photo-status role="status" aria-live="polite">Préparation de l'envoi vers Google Drive.</p>
     </div>
     <div class="photo-actions" data-photo-actions>
-      <button class="button button-secondary" type="button" data-photo-delete>Supprimer la photo</button>
+      <button class="button button-secondary" type="button" data-photo-dismiss>Masquer le message</button>
     </div>
   `;
   main.append(photoSection);
   return photoSection;
 }
 
-function showPhoto(photo) {
+function showUploadStatus(title, message) {
   const photoSection = ensurePhotoSection();
-  const photoOutput = document.querySelector("[data-photo-output]");
-  if (photoSection && photoOutput) {
-    photoOutput.src = photo;
-    photoSection.hidden = false;
-    photoSection.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
+  const titleNode = photoSection?.querySelector("[data-photo-title]");
+  const status = photoSection?.querySelector("[data-photo-status]");
+
+  if (!photoSection) return;
+
+  if (titleNode) titleNode.textContent = title;
+  if (status) status.textContent = message;
+  photoSection.hidden = false;
+  photoSection.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function createDemoPhoto() {
@@ -177,15 +182,97 @@ function createDemoPhoto() {
   context.fillText("DEMO CAMERA", 158, 222);
   context.font = "500 24px system-ui, sans-serif";
   context.fillText("Aucune webcam reelle utilisee", 146, 272);
-  return canvas.toDataURL("image/png");
+  return canvas.toDataURL("image/jpeg", 0.9);
+}
+
+function createPhotoFilename(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  const ss = pad(date.getSeconds());
+  return `photo_${yyyy}-${mm}-${dd}_${hh}-${min}-${ss}.jpg`;
+}
+
+function isUploadConfigured() {
+  return GOOGLE_DRIVE_UPLOAD_WEB_APP_URL.startsWith("https://script.google.com/macros/s/");
+}
+
+function getUploadBridge() {
+  if (!isUploadConfigured()) {
+    return Promise.reject(new Error("Google Apps Script Web App URL non configurée."));
+  }
+
+  if (uploadBridgeFrame?.contentWindow && uploadBridgeReady) {
+    return uploadBridgeReady;
+  }
+
+  uploadBridgeFrame = document.createElement("iframe");
+  uploadBridgeFrame.title = "Google Drive upload bridge";
+  uploadBridgeFrame.hidden = true;
+  uploadBridgeFrame.referrerPolicy = "no-referrer";
+  uploadBridgeFrame.src = GOOGLE_DRIVE_UPLOAD_WEB_APP_URL;
+  document.body.append(uploadBridgeFrame);
+
+  uploadBridgeReady = new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error("Le pont Google Apps Script ne répond pas."));
+    }, 15000);
+
+    uploadBridgeFrame.addEventListener("load", () => {
+      window.clearTimeout(timeout);
+      resolve(uploadBridgeFrame);
+    }, { once: true });
+  });
+
+  return uploadBridgeReady;
+}
+
+async function uploadPhotoToGoogleDrive(photoDataUrl) {
+  const frame = await getUploadBridge();
+  const requestId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  const filename = createPhotoFilename();
+
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener("message", handleMessage);
+      reject(new Error("Délai d'envoi dépassé."));
+    }, UPLOAD_TIMEOUT_MS);
+
+    function handleMessage(event) {
+      if (event.source !== frame.contentWindow) return;
+      if (!event.data || event.data.type !== "PLEXIDESIGN_PHOTO_UPLOAD_RESULT") return;
+      if (event.data.requestId !== requestId) return;
+
+      window.clearTimeout(timeout);
+      window.removeEventListener("message", handleMessage);
+
+      if (event.data.ok) {
+        resolve(event.data.result);
+      } else {
+        reject(new Error(event.data.message || "L'envoi Google Drive a échoué."));
+      }
+    }
+
+    window.addEventListener("message", handleMessage);
+    frame.contentWindow.postMessage({
+      type: "PLEXIDESIGN_PHOTO_UPLOAD",
+      requestId,
+      payload: {
+        image: photoDataUrl,
+        filename,
+        pageUrl: window.location.href,
+        sentAt: new Date().toISOString()
+      }
+    }, "*");
+  });
 }
 
 async function capturePhoto() {
   if (autoCameraEnabled) {
-    setStatus("Mode démo : capture simulée sans webcam.");
-    showPhoto(createDemoPhoto());
-    closeDialog();
-    window.dispatchEvent(new CustomEvent("plexi:toast", { detail: "Photo démo générée" }));
+    await sendCapturedPhoto(createDemoPhoto());
     return;
   }
 
@@ -214,12 +301,9 @@ async function capturePhoto() {
     canvas.height = height;
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, width, height);
-    const photo = canvas.toDataURL("image/png");
+    const photo = canvas.toDataURL("image/jpeg", 0.9);
 
-    showPhoto(photo);
-
-    setStatus("Photo prise.");
-    closeDialog();
+    await sendCapturedPhoto(photo);
   } catch (error) {
     const message = error?.name === "NotAllowedError"
       ? "Autorisation refusée. Aucune photo n'a été prise."
@@ -232,6 +316,20 @@ async function capturePhoto() {
       stream.getTracks().forEach((track) => track.stop());
     }
     video.remove();
+  }
+}
+
+async function sendCapturedPhoto(photo) {
+  setStatus("Photo prise. Envoi en cours...");
+  closeDialog();
+  showUploadStatus("Envoi de la photo...", "Transmission sécurisée vers Google Drive en cours.");
+
+  try {
+    await uploadPhotoToGoogleDrive(photo);
+    showUploadStatus("Photo envoyée avec succès", "La photo a bien été enregistrée dans le dossier Google Drive configuré.");
+    window.dispatchEvent(new CustomEvent("plexi:toast", { detail: "Photo envoyée avec succès" }));
+  } catch (error) {
+    showUploadStatus("Erreur d'envoi", error.message || "Impossible d'envoyer la photo vers Google Drive.");
   }
 }
 
@@ -259,12 +357,9 @@ export function initCameraPrompt() {
       capturePhoto();
     }
 
-    if (target.closest("[data-photo-delete]")) {
+    if (target.closest("[data-photo-dismiss]")) {
       const photoSection = document.querySelector("[data-photo-section]");
-      const photoOutput = document.querySelector("[data-photo-output]");
-      if (photoOutput) photoOutput.removeAttribute("src");
       if (photoSection) photoSection.hidden = true;
-      window.dispatchEvent(new CustomEvent("plexi:toast", { detail: "Photo supprimée" }));
     }
   });
 
