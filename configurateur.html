@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Configurateur plexiglass sur mesure - PlexiDesign</title>
+    <meta name="description" content="Configurez votre plaque de plexiglass sur mesure : dimensions, épaisseur, finition, couleur et prix instantané.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Configurateur PlexiDesign">
+    <meta property="og:description" content="Calculez instantanément le prix de votre plaque de plexiglass sur mesure.">
+    <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/responsive.css">
+  </head>
+  <body class="page-configurator">
+    <a class="skip-link" href="#contenu">Aller au contenu</a>
+
+    <header class="site-header" data-header>
+      <div class="header-inner">
+        <a class="brand" href="index.html" aria-label="PlexiDesign accueil">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>PlexiDesign</span>
+        </a>
+        <nav class="primary-nav" data-nav aria-label="Navigation principale">
+          <a href="index.html">Accueil</a>
+          <a href="products.html">Produits</a>
+          <a href="configurateur.html" aria-current="page">Sur mesure</a>
+          <a href="index.html#fonctionnement">Comment ça marche</a>
+          <a href="index.html#a-propos">À propos</a>
+          <a href="contact.html">Contact</a>
+        </nav>
+        <div class="header-actions">
+          <a class="button button-ghost header-cta" href="configurateur.html">Configurer</a>
+          <button class="cart-trigger" type="button" data-cart-open aria-label="Ouvrir le panier">
+            <span class="cart-icon" aria-hidden="true"></span>
+            <span class="cart-count" data-cart-count>0</span>
+          </button>
+          <button class="nav-toggle" type="button" data-nav-toggle aria-label="Ouvrir le menu" aria-expanded="false">
+            <span></span>
+            <span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main id="contenu">
+      <section class="page-hero compact-hero">
+        <p class="eyebrow">Sur mesure</p>
+        <h1>Configurez votre plaque en quelques gestes.</h1>
+        <p>Le prix évolue en direct selon la surface, l'épaisseur, la finition et la quantité.</p>
+      </section>
+
+      <section class="section configurator-section standalone-configurator" data-configurator>
+        <div class="configurator-shell reveal">
+          <form class="configurator-panel" data-config-form novalidate>
+            <div class="form-row two-columns">
+              <label>
+                <span>Largeur</span>
+                <span class="input-unit">
+                  <input data-config-width name="width" type="number" min="100" max="3000" step="10" value="1000" inputmode="numeric" required>
+                  <em>mm</em>
+                </span>
+              </label>
+              <label>
+                <span>Hauteur</span>
+                <span class="input-unit">
+                  <input data-config-height name="height" type="number" min="100" max="2000" step="10" value="500" inputmode="numeric" required>
+                  <em>mm</em>
+                </span>
+              </label>
+            </div>
+
+            <fieldset class="segmented-field">
+              <legend>Épaisseur</legend>
+              <div class="segmented-options" data-thickness-options></div>
+            </fieldset>
+
+            <fieldset class="segmented-field">
+              <legend>Type</legend>
+              <div class="segmented-options type-options" data-type-options></div>
+            </fieldset>
+
+            <fieldset class="color-field" data-color-field hidden>
+              <legend>Couleur</legend>
+              <div class="swatch-options" data-color-options></div>
+            </fieldset>
+
+            <label class="quantity-label">
+              <span>Quantité</span>
+              <span class="quantity-control">
+                <button type="button" data-quantity-decrease aria-label="Diminuer la quantité">-</button>
+                <input data-config-quantity name="quantity" type="number" min="1" max="50" value="1" inputmode="numeric" required>
+                <button type="button" data-quantity-increase aria-label="Augmenter la quantité">+</button>
+              </span>
+            </label>
+
+            <p class="validation-message" data-config-message role="status" aria-live="polite"></p>
+
+            <div class="price-card">
+              <span>Prix estimé</span>
+              <output data-config-price for="width height quantity">39,90 €</output>
+            </div>
+
+            <button class="button button-primary button-wide" type="submit" data-add-config>
+              Ajouter au panier
+            </button>
+          </form>
+
+          <aside class="preview-panel" aria-label="Prévisualisation de la plaque">
+            <div class="plate-stage">
+              <div class="configured-plate" data-plate-preview>
+                <span></span>
+              </div>
+            </div>
+            <p class="preview-caption" data-preview-caption>1000 x 500 x 5 mm</p>
+            <p class="preview-note" data-preview-note>Finition transparente, chants polis, rendu indicatif.</p>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <aside class="cart-drawer" data-cart-drawer aria-hidden="true" aria-label="Panier">
+      <div class="cart-backdrop" data-cart-close></div>
+      <section class="cart-panel" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+        <div class="cart-header">
+          <h2 id="cart-title">Votre panier</h2>
+          <button class="icon-button" type="button" data-cart-close aria-label="Fermer le panier">x</button>
+        </div>
+        <div class="cart-items" data-cart-items></div>
+        <div class="cart-empty" data-cart-empty>
+          <h3>Votre panier est vide</h3>
+          <p>Configurez une plaque pour voir le récapitulatif ici.</p>
+        </div>
+        <div class="cart-summary" data-cart-summary>
+          <div><span>Sous-total</span><strong data-cart-subtotal>0,00 €</strong></div>
+          <div><span>Livraison</span><strong data-cart-shipping>0,00 €</strong></div>
+          <div class="summary-total"><span>Total TTC</span><strong data-cart-total>0,00 €</strong></div>
+          <button class="button button-primary button-wide" type="button">Valider la commande</button>
+        </div>
+      </section>
+    </aside>
+
+    <dialog class="camera-dialog" data-camera-dialog aria-labelledby="camera-title">
+      <div class="dialog-card">
+        <button class="icon-button dialog-close" type="button" data-camera-decline aria-label="Fermer">x</button>
+        <p class="camera-kicker">Photo</p>
+        <h2 id="camera-title">Une petite photo ?</h2>
+        <p>Avec votre accord, nous pouvons prendre une photo avec la caméra de votre ordinateur et l'afficher directement sur le site.</p>
+        <p class="privacy-note">Votre caméra ne sera utilisée qu'après votre autorisation. La photo reste dans votre navigateur et n'est pas envoyée vers un serveur.</p>
+        <p class="camera-status" data-camera-status role="status" aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button class="button button-secondary" type="button" data-camera-decline>Non merci</button>
+          <button class="button button-primary" type="button" data-camera-accept>Oui, prendre ma photo</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
+
+    <footer class="site-footer">
+      <div>
+        <a class="brand footer-brand" href="index.html">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>PlexiDesign</span>
+        </a>
+        <p>Plaques de plexiglass sur mesure.</p>
+      </div>
+      <nav aria-label="Navigation secondaire">
+        <a href="products.html">Produits</a>
+        <a href="configurateur.html">Configurateur</a>
+        <a href="contact.html#livraison">Livraison</a>
+        <a href="contact.html#faq">FAQ</a>
+        <a href="contact.html">Contact</a>
+        <a href="contact.html#mentions">Mentions légales</a>
+        <a href="contact.html#confidentialite">Politique de confidentialité</a>
+      </nav>
+      <p class="copyright">© 2026 PlexiDesign</p>
+    </footer>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>

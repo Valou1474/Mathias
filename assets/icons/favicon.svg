@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PlexiDesign">
+  <rect x="10" y="10" width="44" height="44" rx="9" fill="#eafffb" stroke="#13a99e" stroke-width="3"/>
+  <path d="M18 42 42 18" stroke="#48d6cb" stroke-width="7" stroke-linecap="round"/>
+  <path d="M26 46 46 26" stroke="#142124" stroke-width="4" stroke-linecap="round" opacity=".76"/>
+</svg>
