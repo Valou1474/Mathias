@@ -1027,6 +1027,128 @@ textarea {
   margin-top: 18px;
 }
 
+.admin-section {
+  padding-top: 28px;
+}
+
+.admin-login {
+  width: min(100%, 520px);
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(20, 33, 36, 0.08);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-sm);
+  padding: clamp(18px, 3vw, 30px);
+}
+
+.admin-login .section-heading {
+  margin-bottom: 8px;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+}
+
+.admin-toolbar h2 {
+  font-size: clamp(1.8rem, 3vw, 3rem);
+}
+
+.admin-toolbar p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.admin-actions,
+.admin-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-status {
+  min-height: 24px;
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.admin-status[data-status="success"] {
+  color: #08776f;
+}
+
+.admin-status[data-status="error"] {
+  color: var(--danger);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.admin-photo-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(20, 33, 36, 0.08);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-photo-media {
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(135deg, rgba(238, 245, 244, 0.9), rgba(255, 255, 255, 0.72));
+}
+
+.admin-photo-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.admin-photo-content {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.admin-photo-content h3 {
+  font-size: 1rem;
+}
+
+.admin-photo-content p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-photo-page {
+  min-height: 2.7em;
+}
+
+.admin-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  padding: 24px;
+  text-align: center;
+}
+
 .page-hero {
   padding: clamp(64px, 11vw, 128px) 0 34px;
 }

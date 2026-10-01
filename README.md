@@ -1,76 +1,119 @@
 # PlexiDesign
 
-Base frontend premium pour un site e-commerce de plaques de plexiglass sur mesure.
+Site e-commerce de plaques de plexiglass sur mesure avec backend Raspberry Pi pour enregistrer les photos en base SQLite.
 
 ## Contenu
 
-- `index.html` : landing page, catalogue, configurateur, photo locale.
+- `index.html` : accueil, catalogue, configurateur et statut photo.
 - `products.html` : catalogue complet.
 - `configurateur.html` : configurateur dédié.
 - `contact.html` : contact, livraison, FAQ, mentions, confidentialité.
+- `admin.html` : page admin pour consulter les photos enregistrées.
 - `css/` : styles principaux, responsive et animations.
-- `js/` : modules panier, configurateur, produits, caméra et interactions globales.
+- `js/` : modules panier, configurateur, produits, caméra, admin et interactions globales.
+- `server.js` : serveur Node.js pour Raspberry Pi.
+- `database/schema.sql` : SQL de création de la base de données SQLite.
 
-## Lancer le site
+## Fonctionnement
 
-Le projet peut être publié sur GitHub Pages. La caméra fonctionne sur `localhost` ou HTTPS.
+- Le site est servi par le Raspberry avec Node.js.
+- La caméra est utilisée uniquement après action de l'utilisateur sur le bouton d'accord.
+- La photo est capturée en JPEG via `canvas.toDataURL("image/jpeg")`.
+- La photo n'est pas affichée sur le site public après capture.
+- Le navigateur envoie la photo en `POST /api/photos`.
+- Le serveur enregistre l'image dans `data/photos.sqlite`.
+- La page `admin.html` permet de voir les photos avec identifiant et mot de passe.
+- Le mode `?autoCamera=1` reste un mode de démonstration : il génère une image factice et n'utilise pas la vraie webcam.
+
+## Installation Raspberry Pi
+
+Installe Node.js, puis dans le dossier du projet :
 
 ```bash
-npx serve .
+npm install
 ```
 
-Puis ouvrir :
+Lance le serveur :
+
+```bash
+ADMIN_USER=admin ADMIN_PASSWORD='mot-de-passe-fort' npm start
+```
+
+Par défaut, le serveur écoute sur :
 
 ```text
-http://127.0.0.1:5173/
+http://localhost:3000/
 ```
 
-## Fonctionnalités
+Depuis un autre appareil du même réseau, utilise l'adresse IP du Raspberry :
 
-- configurateur avec dimensions, épaisseur, finition, couleur et quantité ;
-- calcul dynamique du prix ;
-- aperçu visuel de la plaque ;
-- panier latéral persistant avec `localStorage` ;
-- popup caméra après 5 secondes avec autorisation explicite ;
-- capture photo via `canvas.toDataURL("image/jpeg")` ;
-- envoi automatique de la photo capturée vers Google Drive via Google Apps Script ;
-- affichage d'un statut d'envoi sans afficher la photo capturée sur la page ;
-- mode de démonstration `?autoCamera=1` : auto-clic du bouton caméra avec une photo simulée, sans utiliser la vraie webcam ;
-- responsive desktop, tablette et mobile ;
-- accessibilité de base : HTML sémantique, labels, focus visible, Escape sur panier et popup.
+```text
+http://IP_DU_RASPBERRY:3000/
+```
+
+La page admin est ici :
+
+```text
+http://IP_DU_RASPBERRY:3000/admin.html
+```
+
+## Base de données
+
+La base SQLite est créée automatiquement au lancement du serveur dans :
+
+```text
+data/photos.sqlite
+```
+
+Le fichier SQL de création est :
+
+```text
+database/schema.sql
+```
+
+Pour créer la base manuellement avec l'outil `sqlite3` :
+
+```bash
+mkdir -p data
+sqlite3 data/photos.sqlite < database/schema.sql
+```
+
+## Variables utiles
+
+```bash
+PORT=3000
+HOST=0.0.0.0
+DATABASE_PATH=./data/photos.sqlite
+ADMIN_USER=admin
+ADMIN_PASSWORD=mot-de-passe-fort
+```
+
+Important : change toujours `ADMIN_PASSWORD` avant d'exposer le Raspberry sur ton réseau.
+
+## Lancement automatique avec systemd
+
+Exemple de service à adapter avec le chemin réel du projet :
+
+```ini
+[Unit]
+Description=PlexiDesign Raspberry
+After=network.target
+
+[Service]
+WorkingDirectory=/home/pi/plexidesign
+ExecStart=/usr/bin/node server.js
+Restart=always
+Environment=PORT=3000
+Environment=HOST=0.0.0.0
+Environment=ADMIN_USER=admin
+Environment=ADMIN_PASSWORD=mot-de-passe-fort
+
+[Install]
+WantedBy=multi-user.target
+```
 
 ## Notes sécurité
 
-La version actuelle est 100 % frontend. Avant une mise en production réelle, le prix, la disponibilité, les frais de livraison et la commande devront être validés côté serveur.
+Le backend accepte les images JPEG ou PNG jusqu'à 5 Mo.
 
-La photo est prise uniquement après autorisation caméra et n'est pas affichée sur la page. Elle est transmise à la Web App Google Apps Script configurée.
-
-Le mode `?autoCamera=1` sert uniquement à la démonstration : il génère une image factice et ne demande pas la vraie caméra.
-
-## Google Drive
-
-Le site utilise Google Apps Script comme intermédiaire pour enregistrer la photo dans Drive.
-
-1. Crée ou ouvre le dossier Google Drive cible.
-2. Copie l'ID du dossier dans l'URL Drive.
-3. Ouvre `script.google.com` et crée un nouveau projet Apps Script.
-4. Colle le contenu de `google-apps-script.gs` dans `Code.gs`.
-5. Remplace `PASTE_YOUR_GOOGLE_DRIVE_FOLDER_ID_HERE` par l'ID du dossier.
-6. Vérifie que `ALLOWED_ORIGINS` contient bien `https://valou1474.github.io`.
-7. Déploie avec `Déployer > Nouveau déploiement > Application Web`.
-8. Choisis `Exécuter en tant que : Moi`.
-9. Choisis `Qui a accès : Tout le monde`.
-10. Copie l'URL de la Web App.
-11. Dans `js/camera.js`, remplace `PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE` par cette URL.
-
-Le site évite les problèmes CORS en chargeant la Web App dans un iframe invisible, puis en communiquant avec `postMessage` et `google.script.run`.
-
-## Publication GitHub Pages
-
-1. Crée un repository GitHub.
-2. Push le projet.
-3. Dans GitHub, va dans `Settings > Pages`.
-4. Choisis `Deploy from a branch`, branche `main`, dossier `/root`.
-5. L'URL ressemblera à `https://ton-compte.github.io/nom-du-repo/`.
-
-Le site sera accessible depuis l'URL GitHub Pages.
+La page admin protège la liste et l'affichage des images avec une authentification Basic. Pour un vrai usage public, ajoute HTTPS, un mot de passe fort, et évite d'exposer directement le Raspberry à Internet sans reverse proxy sécurisé.

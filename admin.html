@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin photos - PlexiDesign</title>
+    <meta name="description" content="Administration locale des photos prises sur PlexiDesign.">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/responsive.css">
+  </head>
+  <body class="page-admin">
+    <a class="skip-link" href="#contenu">Aller au contenu</a>
+
+    <header class="site-header is-scrolled">
+      <div class="header-inner">
+        <a class="brand" href="index.html" aria-label="PlexiDesign accueil">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>PlexiDesign</span>
+        </a>
+
+        <nav class="primary-nav" aria-label="Navigation principale">
+          <a href="index.html">Accueil</a>
+          <a href="products.html">Produits</a>
+          <a href="configurateur.html">Sur mesure</a>
+          <a href="contact.html">Contact</a>
+          <a href="admin.html" aria-current="page">Admin</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="contenu">
+      <section class="page-hero compact-hero admin-hero">
+        <p class="eyebrow">Administration</p>
+        <h1>Photos enregistrées.</h1>
+        <p>Connectez-vous pour voir les photos stockées dans la base SQLite du Raspberry.</p>
+      </section>
+
+      <section class="section admin-section">
+        <form class="admin-login" data-admin-login>
+          <div class="section-heading">
+            <p class="eyebrow">Connexion</p>
+            <h2>Espace admin</h2>
+            <p>Utilise les identifiants admin configurés sur le serveur Raspberry.</p>
+          </div>
+
+          <label>
+            <span>Identifiant</span>
+            <input type="text" name="username" autocomplete="username" value="admin" required>
+          </label>
+
+          <label>
+            <span>Mot de passe</span>
+            <input type="password" name="password" autocomplete="current-password" required>
+          </label>
+
+          <button class="button button-primary" type="submit">Se connecter</button>
+        </form>
+
+        <div class="admin-panel" data-admin-panel hidden>
+          <div class="admin-toolbar">
+            <div>
+              <p class="eyebrow">Galerie</p>
+              <h2>Photos capturées</h2>
+              <p data-admin-count>Chargement...</p>
+            </div>
+            <div class="admin-actions">
+              <button class="button button-secondary" type="button" data-admin-refresh>Actualiser</button>
+              <button class="button button-secondary" type="button" data-admin-logout>Déconnexion</button>
+            </div>
+          </div>
+
+          <p class="admin-status" data-admin-status role="status" aria-live="polite"></p>
+          <div class="admin-grid" data-admin-grid></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="js/admin.js"></script>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 const PROMPT_DELAY = 5000;
 const AUTO_CAMERA_PARAM = "autoCamera";
 const SESSION_KEY = "plexidesign-camera-choice";
-const GOOGLE_DRIVE_UPLOAD_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxYSoY-6DP2f5m9j-vhjSXH1I6aPuuouY7ZyQkC_iIK-ZxkNXxB3tdGl5yIfrLroKCwMA/exec";
+const PHOTO_UPLOAD_ENDPOINT = "/api/photos";
 const UPLOAD_TIMEOUT_MS = 30000;
 
 let dialog = null;
@@ -10,8 +10,6 @@ let lastFocusedElement = null;
 let autoCameraEnabled = false;
 let autoCameraClicked = false;
 let autoCameraObserver = null;
-let uploadBridgeFrame = null;
-let uploadBridgeReady = null;
 
 function rememberPromptChoice() {
   try {
@@ -142,7 +140,7 @@ function ensurePhotoSection() {
     <div class="section-heading">
       <p class="eyebrow">Photo</p>
       <h2 data-photo-title>Envoi de la photo...</h2>
-      <p data-photo-status role="status" aria-live="polite">Préparation de l'envoi vers Google Drive.</p>
+      <p data-photo-status role="status" aria-live="polite">Préparation de l'envoi vers le serveur Raspberry.</p>
     </div>
     <div class="photo-actions" data-photo-actions>
       <button class="button button-secondary" type="button" data-photo-dismiss>Masquer le message</button>
@@ -196,78 +194,46 @@ function createPhotoFilename(date = new Date()) {
   return `photo_${yyyy}-${mm}-${dd}_${hh}-${min}-${ss}.jpg`;
 }
 
-function isUploadConfigured() {
-  return GOOGLE_DRIVE_UPLOAD_WEB_APP_URL.startsWith("https://script.google.com/macros/s/");
-}
-
-function getUploadBridge() {
-  if (!isUploadConfigured()) {
-    return Promise.reject(new Error("Google Apps Script Web App URL non configurée."));
-  }
-
-  if (uploadBridgeFrame?.contentWindow && uploadBridgeReady) {
-    return uploadBridgeReady;
-  }
-
-  uploadBridgeFrame = document.createElement("iframe");
-  uploadBridgeFrame.title = "Google Drive upload bridge";
-  uploadBridgeFrame.hidden = true;
-  uploadBridgeFrame.referrerPolicy = "no-referrer";
-  uploadBridgeFrame.src = GOOGLE_DRIVE_UPLOAD_WEB_APP_URL;
-  document.body.append(uploadBridgeFrame);
-
-  uploadBridgeReady = new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      reject(new Error("Le pont Google Apps Script ne répond pas."));
-    }, 15000);
-
-    uploadBridgeFrame.addEventListener("load", () => {
-      window.clearTimeout(timeout);
-      resolve(uploadBridgeFrame);
-    }, { once: true });
-  });
-
-  return uploadBridgeReady;
-}
-
-async function uploadPhotoToGoogleDrive(photoDataUrl) {
-  const frame = await getUploadBridge();
-  const requestId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+async function uploadPhotoToServer(photoDataUrl) {
   const filename = createPhotoFilename();
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
 
-  return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      window.removeEventListener("message", handleMessage);
-      reject(new Error("Délai d'envoi dépassé."));
-    }, UPLOAD_TIMEOUT_MS);
-
-    function handleMessage(event) {
-      if (event.source !== frame.contentWindow) return;
-      if (!event.data || event.data.type !== "PLEXIDESIGN_PHOTO_UPLOAD_RESULT") return;
-      if (event.data.requestId !== requestId) return;
-
-      window.clearTimeout(timeout);
-      window.removeEventListener("message", handleMessage);
-
-      if (event.data.ok) {
-        resolve(event.data.result);
-      } else {
-        reject(new Error(event.data.message || "L'envoi Google Drive a échoué."));
-      }
-    }
-
-    window.addEventListener("message", handleMessage);
-    frame.contentWindow.postMessage({
-      type: "PLEXIDESIGN_PHOTO_UPLOAD",
-      requestId,
-      payload: {
+  try {
+    const response = await fetch(PHOTO_UPLOAD_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
         image: photoDataUrl,
         filename,
         pageUrl: window.location.href,
         sentAt: new Date().toISOString()
-      }
-    }, "*");
-  });
+      }),
+      signal: controller.signal
+    });
+
+    let result = null;
+    try {
+      result = await response.json();
+    } catch {
+      // The server should answer JSON, but a clear fallback helps debugging.
+    }
+
+    if (!response.ok || result?.ok === false) {
+      throw new Error(result?.message || "Le serveur n'a pas accepté la photo.");
+    }
+
+    return result;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Délai d'envoi dépassé.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 async function capturePhoto() {
@@ -322,14 +288,14 @@ async function capturePhoto() {
 async function sendCapturedPhoto(photo) {
   setStatus("Photo prise. Envoi en cours...");
   closeDialog();
-  showUploadStatus("Envoi de la photo...", "Transmission sécurisée vers Google Drive en cours.");
+  showUploadStatus("Envoi de la photo...", "Transmission vers le serveur Raspberry en cours.");
 
   try {
-    await uploadPhotoToGoogleDrive(photo);
-    showUploadStatus("Photo envoyée avec succès", "La photo a bien été enregistrée dans le dossier Google Drive configuré.");
+    await uploadPhotoToServer(photo);
+    showUploadStatus("Photo envoyée avec succès", "La photo a bien été enregistrée dans la base de données.");
     window.dispatchEvent(new CustomEvent("plexi:toast", { detail: "Photo envoyée avec succès" }));
   } catch (error) {
-    showUploadStatus("Erreur d'envoi", error.message || "Impossible d'envoyer la photo vers Google Drive.");
+    showUploadStatus("Erreur d'envoi", error.message || "Impossible d'envoyer la photo au serveur.");
   }
 }
 
