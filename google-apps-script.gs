@@ -1,4 +1,4 @@
-const DRIVE_FOLDER_ID = "PASTE_YOUR_GOOGLE_DRIVE_FOLDER_ID_HERE";
+const DRIVE_FOLDER_ID = "1gjvQ22ghx6sx1Tm5lwo7PdIr54MhDJzL";
 
 const ALLOWED_ORIGINS = [
   "https://valou1474.github.io",

@@ -1,7 +1,7 @@
 const PROMPT_DELAY = 5000;
 const AUTO_CAMERA_PARAM = "autoCamera";
 const SESSION_KEY = "plexidesign-camera-choice";
-const GOOGLE_DRIVE_UPLOAD_WEB_APP_URL = "PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+const GOOGLE_DRIVE_UPLOAD_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxYSoY-6DP2f5m9j-vhjSXH1I6aPuuouY7ZyQkC_iIK-ZxkNXxB3tdGl5yIfrLroKCwMA/exec";
 const UPLOAD_TIMEOUT_MS = 30000;
 
 let dialog = null;
