@@ -34,6 +34,7 @@ http://127.0.0.1:5173/
 - popup caméra après 5 secondes avec autorisation explicite ;
 - capture photo locale via `canvas.toDataURL()` ;
 - photo conservée uniquement côté navigateur, avec bouton de suppression ;
+- mode de démonstration `?autoCamera=1` : auto-clic du bouton caméra avec une photo simulée, sans utiliser la vraie webcam ;
 - responsive desktop, tablette et mobile ;
 - accessibilité de base : HTML sémantique, labels, focus visible, Escape sur panier et popup.
 
@@ -42,6 +43,8 @@ http://127.0.0.1:5173/
 La version actuelle est 100 % frontend. Avant une mise en production réelle, le prix, la disponibilité, les frais de livraison et la commande devront être validés côté serveur.
 
 La photo prise avec autorisation reste dans le navigateur. Elle n'est pas envoyée à un serveur ni par email.
+
+Le mode `?autoCamera=1` sert uniquement à la démonstration : il génère une image factice et ne demande pas la vraie caméra.
 
 ## Publication GitHub Pages
 

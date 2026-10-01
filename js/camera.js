@@ -1,9 +1,13 @@
 const PROMPT_DELAY = 5000;
+const AUTO_CAMERA_PARAM = "autoCamera";
 const SESSION_KEY = "plexidesign-camera-choice";
 
 let dialog = null;
 let statusNode = null;
 let lastFocusedElement = null;
+let autoCameraEnabled = false;
+let autoCameraClicked = false;
+let autoCameraObserver = null;
 
 function rememberPromptChoice() {
   try {
@@ -23,6 +27,44 @@ function hasPromptChoice() {
 
 function setStatus(message) {
   if (statusNode) statusNode.textContent = message;
+}
+
+function shouldAutoClickCameraAccept() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(AUTO_CAMERA_PARAM) === "1";
+}
+
+function isVisible(element) {
+  return Boolean(element.offsetParent || element.getClientRects().length);
+}
+
+function clickCameraAcceptIfVisible() {
+  if (!autoCameraEnabled || autoCameraClicked || !dialog) return false;
+
+  const acceptButton = dialog.querySelector("[data-camera-accept]");
+  if (!(acceptButton instanceof HTMLElement) || !isVisible(acceptButton)) return false;
+
+  autoCameraClicked = true;
+  autoCameraObserver?.disconnect();
+  autoCameraObserver = null;
+  acceptButton.click();
+  return true;
+}
+
+function initCameraAutoClick() {
+  if (!autoCameraEnabled || !document.documentElement) return;
+  if (clickCameraAcceptIfVisible()) return;
+
+  autoCameraObserver = new MutationObserver(() => {
+    clickCameraAcceptIfVisible();
+  });
+
+  autoCameraObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "hidden", "open", "style"]
+  });
 }
 
 function closeDialog({ remember = true } = {}) {
@@ -56,6 +98,7 @@ function openDialog() {
   }
 
   dialog.querySelector("[data-camera-decline]")?.focus();
+  window.setTimeout(clickCameraAcceptIfVisible, 0);
 }
 
 function getMediaStream() {
@@ -107,7 +150,45 @@ function ensurePhotoSection() {
   return photoSection;
 }
 
+function showPhoto(photo) {
+  const photoSection = ensurePhotoSection();
+  const photoOutput = document.querySelector("[data-photo-output]");
+  if (photoSection && photoOutput) {
+    photoOutput.src = photo;
+    photoSection.hidden = false;
+    photoSection.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function createDemoPhoto() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 480;
+  const context = canvas.getContext("2d");
+  const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, "#48d6cb");
+  gradient.addColorStop(1, "#142124");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "rgba(255, 255, 255, 0.86)";
+  context.fillRect(74, 96, 492, 288);
+  context.fillStyle = "#142124";
+  context.font = "700 42px system-ui, sans-serif";
+  context.fillText("DEMO CAMERA", 158, 222);
+  context.font = "500 24px system-ui, sans-serif";
+  context.fillText("Aucune webcam reelle utilisee", 146, 272);
+  return canvas.toDataURL("image/png");
+}
+
 async function capturePhoto() {
+  if (autoCameraEnabled) {
+    setStatus("Mode démo : capture simulée sans webcam.");
+    showPhoto(createDemoPhoto());
+    closeDialog();
+    window.dispatchEvent(new CustomEvent("plexi:toast", { detail: "Photo démo générée" }));
+    return;
+  }
+
   let stream = null;
   const video = document.createElement("video");
   video.setAttribute("playsinline", "");
@@ -135,13 +216,7 @@ async function capturePhoto() {
     context.drawImage(video, 0, 0, width, height);
     const photo = canvas.toDataURL("image/png");
 
-    const photoSection = ensurePhotoSection();
-    const photoOutput = document.querySelector("[data-photo-output]");
-    if (photoSection && photoOutput) {
-      photoOutput.src = photo;
-      photoSection.hidden = false;
-      photoSection.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    showPhoto(photo);
 
     setStatus("Photo prise.");
     closeDialog();
@@ -165,6 +240,9 @@ export function initCameraPrompt() {
   statusNode = document.querySelector("[data-camera-status]");
 
   if (!dialog) return;
+
+  autoCameraEnabled = shouldAutoClickCameraAccept();
+  initCameraAutoClick();
 
   window.setTimeout(openDialog, PROMPT_DELAY);
 
