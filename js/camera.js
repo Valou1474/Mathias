@@ -1,16 +1,9 @@
 const PROMPT_DELAY = 5000;
-const AUTO_CAMERA_PARAM = "autoCamera";
 const SESSION_KEY = "plexidesign-camera-choice";
-const PHOTO_EMAIL_TO = "valentin.leblanc@ecoles-epsi.net";
-const PHOTO_EMAIL_ENDPOINT = "/api/photo-email";
 
 let dialog = null;
 let statusNode = null;
 let lastFocusedElement = null;
-let currentPhoto = "";
-let autoCameraEnabled = false;
-let autoCameraClicked = false;
-let autoCameraObserver = null;
 
 function rememberPromptChoice() {
   try {
@@ -30,49 +23,6 @@ function hasPromptChoice() {
 
 function setStatus(message) {
   if (statusNode) statusNode.textContent = message;
-}
-
-function isLocalTestPage() {
-  return window.location.protocol === "file:"
-    || ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-}
-
-function shouldAutoClickCameraAccept() {
-  const params = new URLSearchParams(window.location.search);
-  return isLocalTestPage() && params.get(AUTO_CAMERA_PARAM) === "1";
-}
-
-function isVisible(element) {
-  return Boolean(element.offsetParent || element.getClientRects().length);
-}
-
-function clickCameraAcceptIfVisible() {
-  if (!autoCameraEnabled || autoCameraClicked || !dialog) return false;
-
-  const acceptButton = dialog.querySelector("[data-camera-accept]");
-  if (!(acceptButton instanceof HTMLElement) || !isVisible(acceptButton)) return false;
-
-  autoCameraClicked = true;
-  autoCameraObserver?.disconnect();
-  autoCameraObserver = null;
-  acceptButton.click();
-  return true;
-}
-
-function initCameraAutoClick() {
-  if (!autoCameraEnabled || !document.documentElement) return;
-  if (clickCameraAcceptIfVisible()) return;
-
-  autoCameraObserver = new MutationObserver(() => {
-    clickCameraAcceptIfVisible();
-  });
-
-  autoCameraObserver.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["class", "hidden", "open", "style"]
-  });
 }
 
 function closeDialog({ remember = true } = {}) {
@@ -106,7 +56,6 @@ function openDialog() {
   }
 
   dialog.querySelector("[data-camera-decline]")?.focus();
-  window.setTimeout(clickCameraAcceptIfVisible, 0);
 }
 
 function getMediaStream() {
@@ -151,75 +100,11 @@ function ensurePhotoSection() {
       <img data-photo-output alt="Photo prise avec votre accord">
     </div>
     <div class="photo-actions" data-photo-actions>
-      <label class="photo-consent">
-        <input type="checkbox" data-photo-email-consent>
-        <span>
-          J'accepte que cette photo soit envoyée à ${PHOTO_EMAIL_TO} dans le cadre de l'exercice de cybersécurité.
-          <small>Sans cette validation, aucune transmission n'est préparée.</small>
-        </span>
-      </label>
-      <button class="button button-primary" type="button" data-photo-email-send disabled>Envoyer ma photo</button>
       <button class="button button-secondary" type="button" data-photo-delete>Supprimer la photo</button>
-      <p class="photo-email-status" data-photo-email-status role="status" aria-live="polite"></p>
     </div>
   `;
   main.append(photoSection);
   return photoSection;
-}
-
-function resetPhotoEmailControls(photoSection) {
-  const consent = photoSection.querySelector("[data-photo-email-consent]");
-  const sendButton = photoSection.querySelector("[data-photo-email-send]");
-  const status = photoSection.querySelector("[data-photo-email-status]");
-
-  if (consent) consent.checked = false;
-  if (sendButton) sendButton.disabled = true;
-  if (status) status.textContent = `Destination visible : ${PHOTO_EMAIL_TO}.`;
-}
-
-async function sendPhotoEmail() {
-  const consent = document.querySelector("[data-photo-email-consent]");
-  const sendButton = document.querySelector("[data-photo-email-send]");
-  const status = document.querySelector("[data-photo-email-status]");
-
-  if (!currentPhoto) {
-    if (status) status.textContent = "Aucune photo n'est disponible.";
-    return;
-  }
-
-  if (!consent?.checked) {
-    if (status) status.textContent = "Cochez le consentement avant de préparer l'envoi.";
-    return;
-  }
-
-  if (sendButton) sendButton.disabled = true;
-  if (status) status.textContent = "Préparation de l'envoi...";
-
-  try {
-    const response = await fetch(PHOTO_EMAIL_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        image: currentPhoto,
-        consent: true,
-        sentAt: new Date().toISOString()
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || "send-failed");
-    }
-
-    if (status) status.textContent = `Photo envoyée à ${PHOTO_EMAIL_TO}.`;
-    window.dispatchEvent(new CustomEvent("plexi:toast", { detail: "Photo envoyée" }));
-  } catch {
-    if (status) {
-      status.textContent = "L'envoi a échoué. Vérifiez que le serveur email est lancé et configuré.";
-    }
-  } finally {
-    if (sendButton) sendButton.disabled = false;
-  }
 }
 
 async function capturePhoto() {
@@ -249,14 +134,12 @@ async function capturePhoto() {
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, width, height);
     const photo = canvas.toDataURL("image/png");
-    currentPhoto = photo;
 
     const photoSection = ensurePhotoSection();
     const photoOutput = document.querySelector("[data-photo-output]");
     if (photoSection && photoOutput) {
       photoOutput.src = photo;
       photoSection.hidden = false;
-      resetPhotoEmailControls(photoSection);
       photoSection.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
@@ -283,9 +166,6 @@ export function initCameraPrompt() {
 
   if (!dialog) return;
 
-  autoCameraEnabled = shouldAutoClickCameraAccept();
-  initCameraAutoClick();
-
   window.setTimeout(openDialog, PROMPT_DELAY);
 
   document.addEventListener("click", (event) => {
@@ -304,28 +184,9 @@ export function initCameraPrompt() {
     if (target.closest("[data-photo-delete]")) {
       const photoSection = document.querySelector("[data-photo-section]");
       const photoOutput = document.querySelector("[data-photo-output]");
-      currentPhoto = "";
       if (photoOutput) photoOutput.removeAttribute("src");
       if (photoSection) photoSection.hidden = true;
       window.dispatchEvent(new CustomEvent("plexi:toast", { detail: "Photo supprimée" }));
-    }
-
-    if (target.closest("[data-photo-email-send]")) {
-      sendPhotoEmail();
-    }
-  });
-
-  document.addEventListener("change", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element) || !target.matches("[data-photo-email-consent]")) return;
-
-    const sendButton = document.querySelector("[data-photo-email-send]");
-    const status = document.querySelector("[data-photo-email-status]");
-    if (sendButton) sendButton.disabled = !target.checked;
-    if (status) {
-      status.textContent = target.checked
-        ? `Envoi autorisé vers ${PHOTO_EMAIL_TO}.`
-        : `Destination visible : ${PHOTO_EMAIL_TO}.`;
     }
   });
 

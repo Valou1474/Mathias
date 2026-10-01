@@ -1027,49 +1027,6 @@ textarea {
   margin-top: 18px;
 }
 
-.photo-consent {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.82);
-  padding: 14px;
-}
-
-.photo-consent input {
-  width: 18px;
-  height: 18px;
-  margin-top: 3px;
-  accent-color: var(--aqua-strong);
-}
-
-.photo-consent span {
-  display: block;
-  margin: 0;
-  color: var(--ink-soft);
-  font-weight: 760;
-}
-
-.photo-consent small,
-.photo-email-status {
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-.photo-email-status {
-  min-height: 22px;
-  margin: 0;
-}
-
-.button:disabled {
-  cursor: not-allowed;
-  transform: none;
-  opacity: 0.56;
-  box-shadow: none;
-}
-
 .page-hero {
   padding: clamp(64px, 11vw, 128px) 0 34px;
 }
