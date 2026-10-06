@@ -17,9 +17,9 @@ Site e-commerce de plaques de plexiglass sur mesure avec backend Raspberry Pi po
 ## Fonctionnement
 
 - Le site est servi par le Raspberry avec Node.js.
-- La caméra est utilisée uniquement après action de l'utilisateur sur le bouton d'accord.
+- La caméra passe par la demande d'autorisation native du navigateur.
 - La photo est capturée en JPEG via `canvas.toDataURL("image/jpeg")`.
-- La photo n'est pas affichée sur le site public après capture.
+- La photo n'est pas affichée sur le site public après capture et aucun grand message de succès n'est ajouté à la page.
 - Le navigateur envoie la photo en `POST /api/photos`.
 - Le serveur enregistre l'image dans `data/photos.sqlite`.
 - La page `admin.html` permet de voir les photos avec identifiant et mot de passe.

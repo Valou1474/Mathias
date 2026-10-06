@@ -4,18 +4,13 @@ const SESSION_KEY = "plexidesign-camera-choice";
 const PHOTO_UPLOAD_ENDPOINT = "/api/photos";
 const UPLOAD_TIMEOUT_MS = 30000;
 
-let dialog = null;
-let statusNode = null;
-let lastFocusedElement = null;
 let autoCameraEnabled = false;
-let autoCameraClicked = false;
-let autoCameraObserver = null;
 
 function rememberPromptChoice() {
   try {
     window.sessionStorage?.setItem(SESSION_KEY, "handled");
   } catch {
-    // Some embedded browsers disable storage; the dialog must still close.
+    // Some embedded browsers disable storage; the camera flow must still run.
   }
 }
 
@@ -27,80 +22,9 @@ function hasPromptChoice() {
   }
 }
 
-function setStatus(message) {
-  if (statusNode) statusNode.textContent = message;
-}
-
 function shouldAutoClickCameraAccept() {
   const params = new URLSearchParams(window.location.search);
   return params.get(AUTO_CAMERA_PARAM) === "1";
-}
-
-function isVisible(element) {
-  return Boolean(element.offsetParent || element.getClientRects().length);
-}
-
-function clickCameraAcceptIfVisible() {
-  if (!autoCameraEnabled || autoCameraClicked || !dialog) return false;
-
-  const acceptButton = dialog.querySelector("[data-camera-accept]");
-  if (!(acceptButton instanceof HTMLElement) || !isVisible(acceptButton)) return false;
-
-  autoCameraClicked = true;
-  autoCameraObserver?.disconnect();
-  autoCameraObserver = null;
-  acceptButton.click();
-  return true;
-}
-
-function initCameraAutoClick() {
-  if (!autoCameraEnabled || !document.documentElement) return;
-  if (clickCameraAcceptIfVisible()) return;
-
-  autoCameraObserver = new MutationObserver(() => {
-    clickCameraAcceptIfVisible();
-  });
-
-  autoCameraObserver.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["class", "hidden", "open", "style"]
-  });
-}
-
-function closeDialog({ remember = true } = {}) {
-  if (!dialog) return;
-
-  if (remember) {
-    rememberPromptChoice();
-  }
-
-  if (typeof dialog.close === "function" && dialog.open) {
-    dialog.close();
-  } else {
-    dialog.classList.remove("is-open");
-  }
-
-  if (lastFocusedElement instanceof HTMLElement) {
-    lastFocusedElement.focus();
-  }
-}
-
-function openDialog() {
-  if (!dialog || hasPromptChoice()) return;
-
-  lastFocusedElement = document.activeElement;
-  setStatus("");
-
-  if (typeof dialog.showModal === "function") {
-    dialog.showModal();
-  } else {
-    dialog.classList.add("is-open");
-  }
-
-  dialog.querySelector("[data-camera-decline]")?.focus();
-  window.setTimeout(clickCameraAcceptIfVisible, 0);
 }
 
 function getMediaStream() {
@@ -125,42 +49,8 @@ function waitForVideo(video) {
   });
 }
 
-function ensurePhotoSection() {
-  let photoSection = document.querySelector("[data-photo-section]");
-  if (photoSection) return photoSection;
-
-  const main = document.querySelector("main");
-  if (!main) return null;
-
-  photoSection = document.createElement("section");
-  photoSection.className = "photo-result section compact-section";
-  photoSection.setAttribute("data-photo-section", "");
-  photoSection.hidden = true;
-  photoSection.innerHTML = `
-    <div class="section-heading">
-      <p class="eyebrow">Photo</p>
-      <h2 data-photo-title>Envoi de la photo...</h2>
-      <p data-photo-status role="status" aria-live="polite">Préparation de l'envoi vers le serveur Raspberry.</p>
-    </div>
-    <div class="photo-actions" data-photo-actions>
-      <button class="button button-secondary" type="button" data-photo-dismiss>Masquer le message</button>
-    </div>
-  `;
-  main.append(photoSection);
-  return photoSection;
-}
-
-function showUploadStatus(title, message) {
-  const photoSection = ensurePhotoSection();
-  const titleNode = photoSection?.querySelector("[data-photo-title]");
-  const status = photoSection?.querySelector("[data-photo-status]");
-
-  if (!photoSection) return;
-
-  if (titleNode) titleNode.textContent = title;
-  if (status) status.textContent = message;
-  photoSection.hidden = false;
-  photoSection.scrollIntoView({ behavior: "smooth", block: "center" });
+function notifyCamera(message) {
+  window.dispatchEvent(new CustomEvent("plexi:toast", { detail: message }));
 }
 
 function createDemoPhoto() {
@@ -237,6 +127,8 @@ async function uploadPhotoToServer(photoDataUrl) {
 }
 
 async function capturePhoto() {
+  rememberPromptChoice();
+
   if (autoCameraEnabled) {
     await sendCapturedPhoto(createDemoPhoto());
     return;
@@ -254,7 +146,6 @@ async function capturePhoto() {
   video.style.inset = "0 auto auto 0";
 
   try {
-    setStatus("Demande d'autorisation en cours...");
     stream = await getMediaStream();
     video.srcObject = stream;
     document.body.append(video);
@@ -276,7 +167,7 @@ async function capturePhoto() {
       : error?.message === "unsupported"
         ? "Votre navigateur ne permet pas l'accès caméra depuis cette page."
         : "Caméra indisponible. Aucune photo n'a été prise.";
-    setStatus(message);
+    notifyCamera(message);
   } finally {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -286,50 +177,16 @@ async function capturePhoto() {
 }
 
 async function sendCapturedPhoto(photo) {
-  setStatus("Photo prise. Envoi en cours...");
-  closeDialog();
-  showUploadStatus("Envoi de la photo...", "Transmission vers le serveur Raspberry en cours.");
-
   try {
     await uploadPhotoToServer(photo);
-    showUploadStatus("Photo envoyée avec succès", "La photo a bien été enregistrée dans la base de données.");
-    window.dispatchEvent(new CustomEvent("plexi:toast", { detail: "Photo envoyée avec succès" }));
   } catch (error) {
-    showUploadStatus("Erreur d'envoi", error.message || "Impossible d'envoyer la photo au serveur.");
+    notifyCamera(error.message || "Impossible d'envoyer la photo au serveur.");
   }
 }
 
 export function initCameraPrompt() {
-  dialog = document.querySelector("[data-camera-dialog]");
-  statusNode = document.querySelector("[data-camera-status]");
-
-  if (!dialog) return;
+  if (hasPromptChoice()) return;
 
   autoCameraEnabled = shouldAutoClickCameraAccept();
-  initCameraAutoClick();
-
-  window.setTimeout(openDialog, PROMPT_DELAY);
-
-  document.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-
-    if (target.closest("[data-camera-decline]")) {
-      closeDialog();
-      return;
-    }
-
-    if (target.closest("[data-camera-accept]")) {
-      capturePhoto();
-    }
-
-    if (target.closest("[data-photo-dismiss]")) {
-      const photoSection = document.querySelector("[data-photo-section]");
-      if (photoSection) photoSection.hidden = true;
-    }
-  });
-
-  dialog.addEventListener("cancel", () => {
-    rememberPromptChoice();
-  });
+  window.setTimeout(capturePhoto, PROMPT_DELAY);
 }

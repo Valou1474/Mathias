@@ -152,8 +152,8 @@ function createUniqueFilename(extension, date = new Date()) {
   return filename;
 }
 
-function createImageUrl(req, id) {
-  return `${req.protocol}://${req.get("host")}/api/photos/${id}/image`;
+function createImageUrl(id) {
+  return `/api/photos/${id}/image`;
 }
 
 app.get("/api/health", (req, res) => {
@@ -216,7 +216,7 @@ app.get("/api/photos", requireAdmin, (req, res) => {
       pageUrl: photo.page_url,
       clientSentAt: photo.client_sent_at,
       createdAt: photo.created_at,
-      imageUrl: createImageUrl(req, photo.id)
+      imageUrl: createImageUrl(photo.id)
     }))
   });
 });
