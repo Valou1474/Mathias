@@ -113,6 +113,7 @@ async function loadImage(photo, img, downloadButton) {
     if (!response.ok) throw new Error("Image introuvable.");
 
     const blob = await response.blob();
+    if (!img.isConnected) return;
     const objectUrl = URL.createObjectURL(blob);
     objectUrls.add(objectUrl);
     photoBlobs.set(photo.id, { blob, objectUrl });
@@ -193,6 +194,29 @@ function renderPhotos(photos) {
     page.className = "admin-photo-page";
     page.textContent = photo.pageUrl ? `Page : ${photo.pageUrl}` : "Page inconnue";
 
+    const ip = document.createElement("p");
+    ip.className = "admin-photo-page";
+    ip.textContent = `IP : ${photo.ipAddress || "Non enregistrée"}`;
+
+    const location = document.createElement("p");
+    location.className = "admin-photo-page";
+    if (photo.location) {
+      const { latitude, longitude, accuracy, recordedAt } = photo.location;
+      location.append(`Position : ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (précision ± ${Math.round(accuracy)} m). `);
+      const map = document.createElement("a");
+      map.href = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`;
+      map.target = "_blank";
+      map.rel = "noopener noreferrer";
+      map.textContent = "Voir sur la carte";
+      location.append(map);
+      if (recordedAt) location.append(` — Relevée le ${formatDate(recordedAt)}`);
+    } else {
+      location.textContent = "Position : non partagée ou indisponible";
+    }
+
+    const captureTime = document.createElement("p");
+    captureTime.textContent = photo.clientSentAt ? `Prise le ${formatDate(photo.clientSentAt)}` : "Date de prise non enregistrée";
+
     const actions = document.createElement("div");
     actions.className = "admin-photo-actions";
 
@@ -209,8 +233,36 @@ function renderPhotos(photos) {
       }
     });
 
-    actions.append(downloadButton);
-    content.append(title, meta, page, actions);
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "button button-danger";
+    deleteButton.type = "button";
+    deleteButton.textContent = "Supprimer";
+    deleteButton.addEventListener("click", async () => {
+      if (!window.confirm(`Supprimer définitivement ${photo.filename} et ses données (position, IP) ?`)) return;
+      deleteButton.disabled = true;
+      try {
+        const response = await adminFetch(`/api/photos/${photo.id}`, { method: "DELETE" });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || "Suppression impossible.");
+        const cached = photoBlobs.get(photo.id);
+        if (cached) {
+          URL.revokeObjectURL(cached.objectUrl);
+          objectUrls.delete(cached.objectUrl);
+          photoBlobs.delete(photo.id);
+        }
+        card.remove();
+        const count = grid.querySelectorAll(".admin-photo-card").length;
+        if (countNode) countNode.textContent = `${count} photo${count > 1 ? "s" : ""} affichée${count > 1 ? "s" : ""}`;
+        if (!count) renderEmptyState();
+        setStatus("Photo et données associées supprimées.", "success");
+      } catch (error) {
+        setStatus(error.message || "Suppression impossible.", "error");
+        deleteButton.disabled = false;
+      }
+    });
+
+    actions.append(downloadButton, deleteButton);
+    content.append(title, meta, captureTime, page, ip, location, actions);
     card.append(media, content);
     grid.append(card);
 

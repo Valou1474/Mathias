@@ -7,6 +7,11 @@ CREATE TABLE IF NOT EXISTS photos (
   page_url TEXT,
   user_agent TEXT,
   client_sent_at TEXT,
+  ip_address TEXT,
+  latitude REAL,
+  longitude REAL,
+  location_accuracy REAL,
+  location_recorded_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

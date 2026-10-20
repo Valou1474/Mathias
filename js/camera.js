@@ -84,7 +84,7 @@ function createPhotoFilename(date = new Date()) {
   return `photo_${yyyy}-${mm}-${dd}_${hh}-${min}-${ss}.jpg`;
 }
 
-async function uploadPhotoToServer(photoDataUrl) {
+async function uploadPhotoToServer(photoDataUrl, location, capturedAt) {
   const filename = createPhotoFilename();
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
@@ -99,7 +99,8 @@ async function uploadPhotoToServer(photoDataUrl) {
         image: photoDataUrl,
         filename,
         pageUrl: window.location.href,
-        sentAt: new Date().toISOString()
+        sentAt: capturedAt,
+        location
       }),
       signal: controller.signal
     });
@@ -126,11 +127,32 @@ async function uploadPhotoToServer(photoDataUrl) {
   }
 }
 
-async function capturePhoto() {
+function getPhotoLocation(enabled) {
+  if (!enabled) return Promise.resolve(null);
+  if (!navigator.geolocation) {
+    notifyCamera("Localisation indisponible. La photo sera envoyée sans position.");
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition((position) => {
+      resolve({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        timestamp: position.timestamp
+      });
+    }, () => {
+      notifyCamera("Localisation refusée ou indisponible. La photo sera envoyée sans position.");
+      resolve(null);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+  });
+}
+
+async function capturePhoto(includeLocation = false) {
   rememberPromptChoice();
 
   if (autoCameraEnabled) {
-    await sendCapturedPhoto(createDemoPhoto());
+    await sendCapturedPhoto(createDemoPhoto(), null, new Date().toISOString());
     return;
   }
 
@@ -150,6 +172,8 @@ async function capturePhoto() {
     video.srcObject = stream;
     document.body.append(video);
     await waitForVideo(video);
+    // Request a fresh position immediately before taking the photo.
+    const location = await getPhotoLocation(includeLocation);
 
     const width = video.videoWidth || 640;
     const height = video.videoHeight || 480;
@@ -159,8 +183,10 @@ async function capturePhoto() {
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, width, height);
     const photo = canvas.toDataURL("image/jpeg", 0.9);
-
-    await sendCapturedPhoto(photo);
+    const capturedAt = new Date().toISOString();
+    stream.getTracks().forEach((track) => track.stop());
+    video.remove();
+    await sendCapturedPhoto(photo, location, capturedAt);
   } catch (error) {
     const message = error?.name === "NotAllowedError"
       ? "Autorisation refusée. Aucune photo n'a été prise."
@@ -176,9 +202,10 @@ async function capturePhoto() {
   }
 }
 
-async function sendCapturedPhoto(photo) {
+async function sendCapturedPhoto(photo, location, capturedAt) {
   try {
-    await uploadPhotoToServer(photo);
+    await uploadPhotoToServer(photo, location, capturedAt);
+    notifyCamera("Photo envoyée à l’administrateur.");
   } catch (error) {
     notifyCamera(error.message || "Impossible d'envoyer la photo au serveur.");
   }
@@ -188,5 +215,41 @@ export function initCameraPrompt() {
   if (hasPromptChoice()) return;
 
   autoCameraEnabled = shouldAutoClickCameraAccept();
-  window.setTimeout(capturePhoto, PROMPT_DELAY);
+  window.setTimeout(() => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "camera-dialog";
+    dialog.setAttribute("aria-labelledby", "camera-consent-title");
+    dialog.innerHTML = `
+      <div class="dialog-card">
+        <h2 id="camera-consent-title">Partager une photo</h2>
+        <p>En acceptant, vous autorisez la prise d’une photo et son envoi à l’administrateur du site. Votre adresse IP sera enregistrée avec cette photo.</p>
+        <label class="camera-location-choice">
+          <input type="checkbox" name="includeLocation">
+          <span>Joindre ma localisation au moment de la photo (facultatif).</span>
+        </label>
+        <p class="privacy-note">Le navigateur demandera les autorisations nécessaires. Vous pouvez refuser la localisation et envoyer une photo sans position.</p>
+        <a href="contact.html#confidentialite">Confidentialité</a>
+        <div class="dialog-actions">
+          <button type="button" class="button button-secondary" data-camera-decline>Refuser</button>
+          <button type="button" class="button button-primary" data-camera-accept>${autoCameraEnabled ? "Envoyer une photo de démonstration" : "Accepter et prendre une photo"}</button>
+        </div>
+      </div>`;
+    const close = () => {
+      rememberPromptChoice();
+      dialog.close();
+      dialog.remove();
+    };
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      close();
+    });
+    dialog.querySelector("[data-camera-decline]").addEventListener("click", close);
+    dialog.querySelector("[data-camera-accept]").addEventListener("click", () => {
+      const includeLocation = dialog.querySelector("[name=includeLocation]").checked;
+      close();
+      capturePhoto(includeLocation);
+    });
+    document.body.append(dialog);
+    dialog.showModal();
+  }, PROMPT_DELAY);
 }

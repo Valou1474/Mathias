@@ -8,6 +8,8 @@ const initSqlJs = require("sql.js");
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
+// Only trust forwarding headers from explicitly configured reverse proxies.
+if (process.env.TRUST_PROXY) app.set("trust proxy", process.env.TRUST_PROXY.split(",").map((value) => value.trim()).filter(Boolean));
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const PUBLIC_DIR = __dirname;
 const DATA_DIR = path.join(__dirname, "data");
@@ -156,21 +158,41 @@ function createImageUrl(id) {
   return `/api/photos/${id}/image`;
 }
 
+function parseLocation(location) {
+  if (location == null) return null;
+  const { latitude, longitude, accuracy, timestamp } = location;
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
+      || !Number.isFinite(longitude) || longitude < -180 || longitude > 180
+      || !Number.isFinite(accuracy) || accuracy < 0
+      || !Number.isFinite(timestamp) || !Number.isFinite(new Date(timestamp).getTime())) {
+    throw new Error("Coordonnées de localisation invalides.");
+  }
+  return { latitude, longitude, accuracy, recordedAt: new Date(timestamp).toISOString() };
+}
+
+app.use("/api/photos", (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, database: path.basename(DATABASE_PATH) });
 });
 
 app.post("/api/photos", (req, res) => {
   try {
-    const { image, pageUrl, sentAt } = req.body || {};
+    const { image, pageUrl, sentAt, location } = req.body || {};
     const parsed = parseImageDataUrl(image);
+    const coordinates = parseLocation(location);
+    const ipAddress = (req.ip || req.socket.remoteAddress || "").replace(/^::ffff:/, "") || null;
     const now = new Date();
     const filename = createUniqueFilename(parsed.extension, now);
     const createdAt = now.toISOString();
 
     const id = insert(`
-      INSERT INTO photos (filename, mime_type, image, size_bytes, page_url, user_agent, client_sent_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO photos (filename, mime_type, image, size_bytes, page_url, user_agent, client_sent_at, created_at,
+        ip_address, latitude, longitude, location_accuracy, location_recorded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       filename,
       parsed.mimeType,
@@ -179,7 +201,12 @@ app.post("/api/photos", (req, res) => {
       typeof pageUrl === "string" ? pageUrl.slice(0, 500) : null,
       req.get("user-agent") || null,
       typeof sentAt === "string" ? sentAt.slice(0, 80) : null,
-      createdAt
+      createdAt,
+      ipAddress,
+      coordinates?.latitude ?? null,
+      coordinates?.longitude ?? null,
+      coordinates?.accuracy ?? null,
+      coordinates?.recordedAt ?? null
     ]);
 
     res.status(201).json({
@@ -200,7 +227,8 @@ app.get("/api/photos", requireAdmin, (req, res) => {
   const rawLimit = Number(req.query.limit || 80);
   const limit = Math.min(150, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 80));
   const rows = all(`
-    SELECT id, filename, mime_type, size_bytes, page_url, client_sent_at, created_at
+    SELECT id, filename, mime_type, size_bytes, page_url, client_sent_at, created_at,
+      ip_address, latitude, longitude, location_accuracy, location_recorded_at
     FROM photos
     ORDER BY datetime(created_at) DESC, id DESC
     LIMIT ?
@@ -216,9 +244,28 @@ app.get("/api/photos", requireAdmin, (req, res) => {
       pageUrl: photo.page_url,
       clientSentAt: photo.client_sent_at,
       createdAt: photo.created_at,
+      ipAddress: photo.ip_address,
+      location: photo.latitude == null || photo.longitude == null ? null : {
+        latitude: photo.latitude,
+        longitude: photo.longitude,
+        accuracy: photo.location_accuracy,
+        recordedAt: photo.location_recorded_at
+      },
       imageUrl: createImageUrl(photo.id)
     }))
   });
+});
+
+app.delete("/api/photos/:id", requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, message: "Identifiant de photo invalide." });
+  }
+  if (!get("SELECT id FROM photos WHERE id = ?", [id])) {
+    return res.status(404).json({ ok: false, message: "Photo introuvable." });
+  }
+  run("DELETE FROM photos WHERE id = ?", [id]);
+  res.json({ ok: true });
 });
 
 app.get("/api/photos/:id/image", requireAdmin, (req, res) => {
@@ -247,10 +294,15 @@ app.get("/admin", (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "admin.html"));
 });
 
-app.use(express.static(PUBLIC_DIR, {
-  extensions: ["html"],
-  index: "index.html"
-}));
+// Serve only public assets; never expose the database, source server or dependencies.
+for (const directory of ["assets", "css", "js"]) {
+  app.use(`/${directory}`, express.static(path.join(PUBLIC_DIR, directory)));
+}
+for (const filename of ["index", "products", "configurateur", "contact", "admin"]) {
+  app.get([`/${filename}.html`, `/${filename}`, ...(filename === "index" ? ["/"] : [])], (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, `${filename}.html`));
+  });
+}
 
 app.use((req, res) => {
   res.status(404).send("Page introuvable.");
@@ -270,6 +322,16 @@ async function start() {
 
   const schema = fs.readFileSync(path.join(__dirname, "database", "schema.sql"), "utf8");
   run(schema);
+  // Upgrade existing installations without changing previously saved photos.
+  const columns = new Set(all("PRAGMA table_info(photos)").map((column) => column.name));
+  for (const [name, type] of Object.entries({
+    ip_address: "TEXT", latitude: "REAL", longitude: "REAL",
+    location_accuracy: "REAL", location_recorded_at: "TEXT"
+  })) {
+    if (!columns.has(name)) run(`ALTER TABLE photos ADD COLUMN ${name} ${type}`);
+  }
+  // Scrub deleted photo bytes from pages released by SQLite.
+  db.run("PRAGMA secure_delete = ON");
 
   app.listen(PORT, HOST, () => {
     console.log(`PlexiDesign demarre sur http://${HOST}:${PORT}`);
