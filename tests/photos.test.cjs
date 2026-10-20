@@ -9,6 +9,8 @@ const { once } = require("node:events");
 const initSqlJs = require("sql.js");
 
 const root = path.resolve(__dirname, "..");
+// Loading SQLite's WebAssembly runtime can take longer on Raspberry Pi hardware.
+const STARTUP_TIMEOUT_MS = 120000;
 const auth = { Authorization: `Basic ${Buffer.from("test-admin:test-password").toString("base64")}` };
 const image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO1sAAAAASUVORK5CYII=";
 
@@ -26,13 +28,15 @@ async function startServer(databasePath, trustProxy = "") {
     stdio: ["ignore", "pipe", "pipe"]
   });
   let errors = "";
+  let output = "";
   child.stderr.on("data", (chunk) => { errors += chunk; });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { child.kill(); reject(new Error(`Startup timeout: ${errors}`)); }, 10000);
+    const timer = setTimeout(() => { child.kill(); reject(new Error(`Startup timeout after ${STARTUP_TIMEOUT_MS / 1000}s: ${errors}`)); }, STARTUP_TIMEOUT_MS);
     child.once("error", (error) => { clearTimeout(timer); reject(error); });
     child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${errors}`)); });
     child.stdout.on("data", (chunk) => {
-      if (String(chunk).includes("PlexiDesign demarre")) { clearTimeout(timer); resolve(); }
+      output += String(chunk);
+      if (output.includes("PlexiDesign demarre")) { clearTimeout(timer); resolve(); }
     });
   });
   return {

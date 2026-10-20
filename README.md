@@ -104,6 +104,7 @@ npm test
 ```
 
 Les tests utilisent une base temporaire indépendante des photos du site.
+Sur un Raspberry Pi, leur démarrage peut être lent : le test du serveur attend jusqu’à deux minutes à chaque lancement avant de signaler un délai dépassé.
 
 Important : change toujours `ADMIN_PASSWORD` avant d'exposer le Raspberry sur ton réseau.
 
