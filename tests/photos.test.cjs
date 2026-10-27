@@ -115,6 +115,10 @@ test("migration, metadata, authentication, private files and persistent deletion
     listing = await (await server.request("/api/photos", { headers: auth })).json();
     assert.equal(listing.photos.some((item) => item.id === saved.id), false, "deletion survives restart");
     assert.equal(listing.photos.some((item) => item.filename === "old.png"), true);
+    const oldPhoto = listing.photos.find((item) => item.filename === "old.png");
+    assert.equal((await server.request(`/api/photos/${oldPhoto.id}`, { method: "DELETE", headers: auth })).status, 200,
+      "photos created before the metadata migration can also be deleted");
+    assert.equal((await server.request(oldPhoto.imageUrl, { headers: auth })).status, 404);
     const proxyUpload = await (await server.request("/api/photos", { method: "POST", headers: {
       "Content-Type": "application/json", "X-Forwarded-For": "198.51.100.12"
     }, body: JSON.stringify({ image }) })).json();

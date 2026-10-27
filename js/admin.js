@@ -237,6 +237,7 @@ function renderPhotos(photos) {
     deleteButton.className = "button button-danger";
     deleteButton.type = "button";
     deleteButton.textContent = "Supprimer";
+    deleteButton.setAttribute("aria-label", `Supprimer ${photo.filename}`);
     deleteButton.addEventListener("click", async () => {
       if (!window.confirm(`Supprimer définitivement ${photo.filename} et ses données (position, IP) ?`)) return;
       deleteButton.disabled = true;

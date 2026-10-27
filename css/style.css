@@ -1460,16 +1460,26 @@ summary {
   margin: 18px 0;
 }
 
-.camera-share {
-  border-top: 1px solid var(--line);
+.camera-notice {
+  width: min(calc(100% - 32px), var(--max));
+  margin: calc(var(--header-h) + 24px) auto 0;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  font-size: 0.95rem;
 }
 
-.camera-share p {
-  color: var(--muted);
+.camera-notice p {
+  margin: 0;
 }
 
-.camera-share .dialog-actions {
-  align-items: center;
+.camera-notice a {
+  text-decoration: underline;
+}
+
+.camera-notice .camera-status {
+  margin-top: 8px;
 }
 
 .camera-location-choice input {
