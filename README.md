@@ -17,7 +17,7 @@ Site e-commerce de plaques de plexiglass sur mesure avec backend Raspberry Pi po
 ## Fonctionnement
 
 - Le site est servi par le Raspberry avec Node.js.
-- Une fenêtre explique l’envoi de la photo et l’enregistrement de l’IP ; la caméra est demandée après acceptation explicite.
+- Un bloc en bas de page explique l’envoi de la photo et l’enregistrement de l’IP ; la caméra est demandée uniquement après un clic sur « Prendre et envoyer une photo ». Aucune fenêtre de partage ne s’ouvre automatiquement.
 - Une case facultative permet de joindre une position récente (coordonnées, précision en mètres et date du relevé). Le navigateur demande une autorisation de localisation distincte. En cas de refus, d’indisponibilité ou de délai dépassé, la photo est envoyée sans position.
 - La photo est capturée en JPEG via `canvas.toDataURL("image/jpeg")`.
 - La photo n'est pas affichée sur le site public après capture et aucun grand message de succès n'est ajouté à la page.

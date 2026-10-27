@@ -1460,6 +1460,18 @@ summary {
   margin: 18px 0;
 }
 
+.camera-share {
+  border-top: 1px solid var(--line);
+}
+
+.camera-share p {
+  color: var(--muted);
+}
+
+.camera-share .dialog-actions {
+  align-items: center;
+}
+
 .camera-location-choice input {
   width: 20px;
   height: 20px;

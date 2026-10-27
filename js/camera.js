@@ -1,26 +1,8 @@
-const PROMPT_DELAY = 5000;
 const AUTO_CAMERA_PARAM = "autoCamera";
-const SESSION_KEY = "plexidesign-camera-choice";
 const PHOTO_UPLOAD_ENDPOINT = "/api/photos";
 const UPLOAD_TIMEOUT_MS = 30000;
 
 let autoCameraEnabled = false;
-
-function rememberPromptChoice() {
-  try {
-    window.sessionStorage?.setItem(SESSION_KEY, "handled");
-  } catch {
-    // Some embedded browsers disable storage; the camera flow must still run.
-  }
-}
-
-function hasPromptChoice() {
-  try {
-    return window.sessionStorage?.getItem(SESSION_KEY) === "handled";
-  } catch {
-    return false;
-  }
-}
 
 function shouldAutoClickCameraAccept() {
   const params = new URLSearchParams(window.location.search);
@@ -149,8 +131,6 @@ function getPhotoLocation(enabled) {
 }
 
 async function capturePhoto(includeLocation = false) {
-  rememberPromptChoice();
-
   if (autoCameraEnabled) {
     await sendCapturedPhoto(createDemoPhoto(), null, new Date().toISOString());
     return;
@@ -212,44 +192,36 @@ async function sendCapturedPhoto(photo, location, capturedAt) {
 }
 
 export function initCameraPrompt() {
-  if (hasPromptChoice()) return;
-
+  const main = document.querySelector("main");
+  if (!main || main.querySelector("[data-camera-share]")) return;
   autoCameraEnabled = shouldAutoClickCameraAccept();
-  window.setTimeout(() => {
-    const dialog = document.createElement("dialog");
-    dialog.className = "camera-dialog";
-    dialog.setAttribute("aria-labelledby", "camera-consent-title");
-    dialog.innerHTML = `
-      <div class="dialog-card">
-        <h2 id="camera-consent-title">Partager une photo</h2>
-        <p>En acceptant, vous autorisez la prise d’une photo et son envoi à l’administrateur du site. Votre adresse IP sera enregistrée avec cette photo.</p>
-        <label class="camera-location-choice">
-          <input type="checkbox" name="includeLocation">
-          <span>Joindre ma localisation au moment de la photo (facultatif).</span>
-        </label>
-        <p class="privacy-note">Le navigateur demandera les autorisations nécessaires. Vous pouvez refuser la localisation et envoyer une photo sans position.</p>
-        <a href="contact.html#confidentialite">Confidentialité</a>
-        <div class="dialog-actions">
-          <button type="button" class="button button-secondary" data-camera-decline>Refuser</button>
-          <button type="button" class="button button-primary" data-camera-accept>${autoCameraEnabled ? "Envoyer une photo de démonstration" : "Accepter et prendre une photo"}</button>
-        </div>
-      </div>`;
-    const close = () => {
-      rememberPromptChoice();
-      dialog.close();
-      dialog.remove();
-    };
-    dialog.addEventListener("cancel", (event) => {
-      event.preventDefault();
-      close();
-    });
-    dialog.querySelector("[data-camera-decline]").addEventListener("click", close);
-    dialog.querySelector("[data-camera-accept]").addEventListener("click", () => {
-      const includeLocation = dialog.querySelector("[name=includeLocation]").checked;
-      close();
-      capturePhoto(includeLocation);
-    });
-    document.body.append(dialog);
-    dialog.showModal();
-  }, PROMPT_DELAY);
+  const section = document.createElement("section");
+  section.className = "section camera-share";
+  section.setAttribute("data-camera-share", "");
+  section.setAttribute("aria-labelledby", "camera-share-title");
+  section.innerHTML = `
+    <h2 id="camera-share-title">Partager une photo</h2>
+    <p>Le bouton prend une photo et l’envoie à l’administrateur avec votre adresse IP.</p>
+    <label class="camera-location-choice">
+      <input type="checkbox" name="includeLocation">
+      <span>Joindre ma localisation (facultatif, avec l’autorisation du navigateur).</span>
+    </label>
+    <div class="dialog-actions">
+      <button type="button" class="button button-secondary" data-camera-accept>${autoCameraEnabled ? "Envoyer une photo de démonstration" : "Prendre et envoyer une photo"}</button>
+      <a href="contact.html#confidentialite">Confidentialité</a>
+    </div>`;
+  const button = section.querySelector("[data-camera-accept]");
+  const locationChoice = section.querySelector("[name=includeLocation]");
+  button.addEventListener("click", async () => {
+    if (button.disabled) return;
+    button.disabled = true;
+    locationChoice.disabled = true;
+    try {
+      await capturePhoto(locationChoice.checked);
+    } finally {
+      button.disabled = false;
+      locationChoice.disabled = false;
+    }
+  });
+  main.append(section);
 }
