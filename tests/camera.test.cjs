@@ -22,7 +22,7 @@ test("no geolocation request without opt-in", async () => {
   assert.equal(await vm.runInContext("getPhotoLocation(false)", context), null);
 });
 
-function automaticCameraContext() {
+function automaticCameraContext({ footer = false } = {}) {
   const timers = new Map();
   const events = new Map();
   const status = { textContent: "" };
@@ -37,7 +37,12 @@ function automaticCameraContext() {
   };
   const document = {
     visibilityState: "visible",
-    querySelector: (selector) => selector === "main" ? main : status,
+    querySelector: (selector) => {
+      if (selector === "main") return main;
+      if (selector === "[data-camera-status]") return status;
+      if (selector === "[data-camera-footer]") return footer ? {} : null;
+      return null;
+    },
     addEventListener: (name, callback) => events.set(name, callback),
     removeEventListener: (name) => events.delete(name),
     body: { append() {} },
@@ -113,6 +118,23 @@ test("camera refusal prevents all capture and upload", async () => {
   assert.equal(flow.state.draws, 0);
   assert.equal(flow.state.uploads.length, 0);
   assert.match(flow.status.textContent, /Autorisation refusée/);
+});
+
+test("home page keeps its visible notice until the camera operation has finished", async () => {
+  const flow = automaticCameraContext({ footer: true });
+  vm.runInContext("initCameraPrompt()", flow.context);
+  flow.start();
+  assert.notEqual(flow.state.notices[0].hidden, true);
+  assert.match(flow.state.notices[0].innerHTML, /envoyée à l’administrateur/);
+  assert.equal([...flow.timers.values()].some((timer) => timer.delay === 2600), false);
+  flow.allow();
+  await new Promise(setImmediate);
+  assert.equal(flow.state.uploads.length, 1);
+  assert.notEqual(flow.state.notices[0].hidden, true);
+  const dismissal = [...flow.timers.values()].find((timer) => timer.delay === 2600);
+  assert.ok(dismissal);
+  dismissal.callback();
+  assert.equal(flow.state.notices[0].hidden, true);
 });
 
 test("background pages wait until visible before scheduling the camera request", async () => {

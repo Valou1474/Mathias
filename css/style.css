@@ -1536,6 +1536,15 @@ summary {
   color: var(--muted);
 }
 
+.site-footer .footer-photo-notice {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.footer-photo-notice a {
+  text-decoration: underline;
+}
+
 .site-footer nav {
   display: flex;
   flex-wrap: wrap;

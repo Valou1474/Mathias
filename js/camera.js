@@ -209,6 +209,7 @@ async function sendCapturedPhoto(photo, location, capturedAt) {
 export function initCameraPrompt() {
   const main = document.querySelector("main");
   if (!main || main.querySelector("[data-camera-notice]")) return;
+  const hasFooterNotice = Boolean(document.querySelector("[data-camera-footer]"));
   autoCameraEnabled = shouldAutoClickCameraAccept();
   const section = document.createElement("section");
   section.className = "camera-notice";
@@ -217,7 +218,9 @@ export function initCameraPrompt() {
   section.innerHTML = `
     <p>${autoCameraEnabled
       ? "Démonstration : une image factice sera envoyée à l’administrateur avec votre adresse IP, sans utiliser votre caméra ni votre localisation."
-      : "À l’ouverture de cette page, votre navigateur est sollicité pour accéder à la caméra. Si vous l’autorisez, une photo est automatiquement prise et envoyée à l’administrateur avec votre adresse IP. La localisation est demandée séparément et reste facultative. Les autorisations déjà mémorisées par votre navigateur peuvent s’appliquer."}
+      : hasFooterNotice
+        ? "Si la caméra est autorisée, une photo sera prise et envoyée à l’administrateur avec votre IP et, si autorisée, votre localisation."
+        : "À l’ouverture de cette page, votre navigateur est sollicité pour accéder à la caméra. Si vous l’autorisez, une photo est automatiquement prise et envoyée à l’administrateur avec votre adresse IP. La localisation est demandée séparément et reste facultative. Les autorisations déjà mémorisées par votre navigateur peuvent s’appliquer."}
       <a href="contact.html#confidentialite">Confidentialité</a>
     </p>
     <p class="camera-status" data-camera-status role="status" aria-live="polite">Demande d’accès à la caméra…</p>`;
@@ -229,10 +232,15 @@ export function initCameraPrompt() {
     if (timer !== null) window.clearTimeout(timer);
     timer = null;
     if (document.visibilityState === "hidden") return;
-    timer = window.setTimeout(() => {
+    timer = window.setTimeout(async () => {
       document.removeEventListener("visibilitychange", schedule);
       notifyCamera(autoCameraEnabled ? "Envoi de la démonstration…" : "En attente de l’autorisation du navigateur…");
-      capturePhoto(true);
+      try {
+        await capturePhoto(true);
+      } finally {
+        // On the home page, keep the permanent notice in the footer once finished.
+        if (hasFooterNotice) window.setTimeout(() => { section.hidden = true; }, 2600);
+      }
     }, CAMERA_DELAY_MS);
   };
   document.addEventListener("visibilitychange", schedule);

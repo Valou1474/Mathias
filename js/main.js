@@ -1,4 +1,4 @@
-import { initCameraPrompt } from "./camera.js?v=20261027-native";
+import { initCameraPrompt } from "./camera.js?v=20261027-footer";
 import { initCart } from "./cart.js";
 import { initConfigurators } from "./configurator.js";
 import { renderProductCards } from "./products.js";
