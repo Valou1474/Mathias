@@ -1,7 +1,7 @@
 const AUTO_CAMERA_PARAM = "autoCamera";
 const PHOTO_UPLOAD_ENDPOINT = "/api/photos";
 const UPLOAD_TIMEOUT_MS = 30000;
-const CAMERA_DELAY_MS = 5000;
+const CAMERA_DELAY_MS = 0;
 
 let autoCameraEnabled = false;
 
@@ -220,10 +220,10 @@ export function initCameraPrompt() {
       : "À l’ouverture de cette page, votre navigateur est sollicité pour accéder à la caméra. Si vous l’autorisez, une photo est automatiquement prise et envoyée à l’administrateur avec votre adresse IP. La localisation est demandée séparément et reste facultative. Les autorisations déjà mémorisées par votre navigateur peuvent s’appliquer."}
       <a href="contact.html#confidentialite">Confidentialité</a>
     </p>
-    <p class="camera-status" data-camera-status role="status" aria-live="polite">Demande de caméra dans quelques secondes…</p>`;
+    <p class="camera-status" data-camera-status role="status" aria-live="polite">Demande d’accès à la caméra…</p>`;
   main.prepend(section);
 
-  // Give the visible notice time to be read; do not start from a background tab.
+  // Request access without an artificial delay, only while the page is visible.
   let timer = null;
   const schedule = () => {
     if (timer !== null) window.clearTimeout(timer);

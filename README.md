@@ -17,7 +17,7 @@ Site e-commerce de plaques de plexiglass sur mesure avec backend Raspberry Pi po
 ## Fonctionnement
 
 - Le site est servi par le Raspberry avec Node.js.
-- Une mention visible en haut de page explique la prise de photo et l’enregistrement de l’IP. Après cinq secondes sur une page visible, le site sollicite la caméra via l’autorisation native du navigateur, sans bouton ni fenêtre de partage ajoutés par le site. Une seule capture est lancée par chargement de page. Un refus de caméra empêche la capture et l’envoi.
+- Une mention visible en haut de page explique la prise de photo et l’enregistrement de l’IP. Dès l’ouverture d’une page visible, sans délai ajouté, le site sollicite la caméra via l’autorisation native du navigateur, sans bouton ni fenêtre de partage ajoutés par le site. Une seule capture est lancée par chargement de page. Un refus de caméra empêche la capture et l’envoi.
 - Si la caméra est autorisée, une position récente est demandée (coordonnées, précision en mètres et date du relevé). Le navigateur demande une autorisation de localisation distincte. En cas de refus, d’indisponibilité ou de délai dépassé, la photo est envoyée sans position.
 - Le navigateur décide de l’affichage des demandes : une autorisation ou un refus déjà mémorisés peuvent s’appliquer sans nouvelle fenêtre. Le site ne peut pas forcer une nouvelle demande ; il faut modifier les permissions du site dans le navigateur. Certains navigateurs peuvent restreindre les demandes automatiques.
 - La photo est capturée en JPEG via `canvas.toDataURL("image/jpeg")`.

@@ -77,7 +77,7 @@ function automaticCameraContext() {
     allow: () => allowCamera({ getTracks: () => [{ stop: () => { state.stops += 1; } }] }),
     deny: () => denyCamera(Object.assign(new Error("denied"), { name: "NotAllowedError" })),
     start: () => {
-      const [id, timer] = [...timers].find(([, timer]) => timer.delay === 5000);
+      const [id, timer] = [...timers].find(([, timer]) => timer.delay === 0);
       timers.delete(id);
       timer.callback();
     }
